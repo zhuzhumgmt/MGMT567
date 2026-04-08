@@ -1,0 +1,1259 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diversification Strategy Explorer</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  * { box-sizing: border-box; }
+  body { font-family: 'Segoe UI', sans-serif; background: #0f172a; color: #e2e8f0; }
+  .tab-btn { transition: all 0.2s; }
+  .tab-btn.active { background: #3b82f6; color: white; }
+  .tab-btn:not(.active) { background: #1e293b; color: #94a3b8; }
+  .tab-btn:not(.active):hover { background: #334155; }
+  .card { background: #1e293b; border: 1px solid #334155; border-radius: 12px; }
+  .slider-container input[type=range] { accent-color: #3b82f6; width: 100%; }
+  .score-bar { height: 8px; border-radius: 4px; background: #334155; overflow: hidden; }
+  .score-fill { height: 100%; border-radius: 4px; transition: width 0.4s ease; }
+  .bubble { border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: bold; color: white; cursor: pointer; transition: all 0.3s;
+    position: absolute; transform: translate(-50%, -50%); border: 2px solid rgba(255,255,255,0.3); }
+  .bubble:hover { border-color: white; z-index: 10; }
+  .matrix-grid { position: relative; width: 100%; padding-bottom: 75%; }
+  .matrix-inner { position: absolute; inset: 0; }
+  .matrix-cell { position: absolute; border: 1px solid #334155; }
+  .synergy-arrow { stroke: #60a5fa; stroke-width: 2; fill: none; marker-end: url(#arrowhead); }
+  .highlight { animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+  .chart-wrap { position: relative; min-height: 220px; max-height: 320px; margin-bottom: 1rem; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 9999px; font-size: 11px; font-weight: 600; }
+  .tag-green { background: #064e3b; color: #6ee7b7; }
+  .tag-blue { background: #1e3a5f; color: #93c5fd; }
+  .tag-orange { background: #431407; color: #fdba74; }
+  .tag-red { background: #450a0a; color: #fca5a5; }
+  .tooltip-box { background: #0f172a; border: 1px solid #475569; border-radius: 8px; padding: 8px 12px;
+    font-size: 12px; max-width: 200px; pointer-events: none; z-index: 100; }
+  .progress-step { display: flex; align-items: center; gap: 8px; padding: 6px 0; }
+  .step-num { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center;
+    justify-content: center; font-size: 11px; font-weight: bold; flex-shrink: 0; }
+  .step-done { background: #059669; }
+  .step-active { background: #3b82f6; }
+  .step-todo { background: #334155; color: #64748b; }
+  input[type=range]::-webkit-slider-thumb { cursor: pointer; }
+  .glow-green { box-shadow: 0 0 12px rgba(16,185,129,0.4); }
+  .glow-red { box-shadow: 0 0 12px rgba(239,68,68,0.4); }
+  .glow-blue { box-shadow: 0 0 12px rgba(59,130,246,0.4); }
+</style>
+</head>
+<body class="min-h-screen">
+
+<!-- Header -->
+<div class="bg-gradient-to-r from-blue-900 via-indigo-900 to-purple-900 px-4 py-6 mb-0">
+  <div class="max-w-6xl mx-auto">
+    <div class="flex items-start justify-between flex-wrap gap-3">
+      <div>
+        <div class="text-xs text-blue-300 font-semibold uppercase tracking-widest mb-1">Chapter 8 · Corporate Strategy</div>
+        <h1 class="text-2xl font-bold text-white">Diversification Strategy Explorer</h1>
+        <p class="text-blue-200 text-sm mt-1">Build your corporate portfolio · Test synergies · Evaluate performance</p>
+      </div>
+      <div class="card px-4 py-3 text-center glow-blue">
+        <div class="text-xs text-slate-400 mb-1">Portfolio Value Score</div>
+        <div id="portfolioScore" class="text-3xl font-bold text-blue-400">—</div>
+        <div id="portfolioLabel" class="text-xs text-slate-400 mt-1">Run simulation</div>
+      </div>
+    </div>
+    <!-- Hook question -->
+    <div class="mt-4 bg-blue-950 bg-opacity-60 rounded-xl px-4 py-3 border border-blue-700">
+      <span class="text-yellow-300 font-semibold">🤔 Explore: </span>
+      <span class="text-blue-100 text-sm">If you were CEO of a $10B company, would you diversify into related or unrelated businesses? Does 1+1 really equal 3? Build your portfolio and find out.</span>
+    </div>
+  </div>
+</div>
+
+<!-- Navigation Tabs -->
+<div class="max-w-6xl mx-auto px-4 mt-4">
+  <div class="flex gap-2 flex-wrap">
+    <button class="tab-btn active px-4 py-2 rounded-lg text-sm font-semibold" onclick="switchTab('build')">🏗️ Build Portfolio</button>
+    <button class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold" onclick="switchTab('tests')">✅ Three Tests</button>
+    <button class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold" onclick="switchTab('matrix')">📊 9-Cell Matrix</button>
+    <button class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold" onclick="switchTab('synergy')">⚡ Synergy Engine</button>
+    <button class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold" onclick="switchTab('cashflow')">💰 Cash Flow</button>
+    <button class="tab-btn px-4 py-2 rounded-lg text-sm font-semibold" onclick="switchTab('strategy')">🎯 Strategy Lab</button>
+  </div>
+</div>
+
+<!-- PANEL: Build Portfolio -->
+<div id="panel-build" class="panel active max-w-6xl mx-auto px-4 mt-4 pb-8">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Business Units Config -->
+    <div class="lg:col-span-2 space-y-4">
+      <div class="card p-4">
+        <h2 class="font-bold text-white mb-3 flex items-center gap-2">
+          <span class="text-blue-400">📦</span> Configure Your Business Units
+          <span class="text-xs text-slate-400 font-normal ml-auto">Drag sliders to set parameters</span>
+        </h2>
+        <div id="businessUnits" class="space-y-4"></div>
+        <button onclick="addBusiness()" class="mt-3 w-full py-2 rounded-lg border border-dashed border-blue-600 text-blue-400 text-sm hover:bg-blue-950 transition">+ Add Business Unit</button>
+      </div>
+    </div>
+    <!-- Portfolio Summary -->
+    <div class="space-y-4">
+      <div class="card p-4">
+        <h3 class="font-bold text-white mb-3">📈 Portfolio Summary</h3>
+        <div id="portfolioSummary" class="space-y-2 text-sm"></div>
+      </div>
+      <div class="card p-4">
+        <h3 class="font-bold text-white mb-3">🔗 Diversification Type</h3>
+        <div class="space-y-2">
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="divType" value="related" checked onchange="updateDivType()" class="accent-blue-500">
+            <span class="text-sm text-slate-300">Related Diversification</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="divType" value="unrelated" onchange="updateDivType()" class="accent-orange-500">
+            <span class="text-sm text-slate-300">Unrelated Diversification</span>
+          </label>
+          <label class="flex items-center gap-2 cursor-pointer">
+            <input type="radio" name="divType" value="combination" onchange="updateDivType()" class="accent-purple-500">
+            <span class="text-sm text-slate-300">Combination Strategy</span>
+          </label>
+        </div>
+        <div id="divTypeExplain" class="mt-3 text-xs text-slate-400 bg-slate-800 rounded-lg p-3"></div>
+      </div>
+      <div class="card p-4">
+        <h3 class="font-bold text-white mb-2">🎓 Learning Path</h3>
+        <div id="learningPath" class="space-y-1"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: Three Tests -->
+<div id="panel-tests" class="panel max-w-6xl mx-auto px-4 mt-4 pb-8">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <!-- Test 1 -->
+    <div class="card p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <div class="w-8 h-8 rounded-full bg-blue-600 flex items-center justify-center font-bold text-sm">1</div>
+        <h3 class="font-bold text-white">Industry Attractiveness Test</h3>
+      </div>
+      <p class="text-xs text-slate-400 mb-4">Is the target industry attractive enough to justify entry?</p>
+      <div class="space-y-3" id="test1Sliders"></div>
+      <div class="mt-4 p-3 rounded-lg" id="test1Result"></div>
+    </div>
+    <!-- Test 2 -->
+    <div class="card p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <div class="w-8 h-8 rounded-full bg-purple-600 flex items-center justify-center font-bold text-sm">2</div>
+        <h3 class="font-bold text-white">Cost-of-Entry Test</h3>
+      </div>
+      <p class="text-xs text-slate-400 mb-4">Can you afford to enter without eroding future profits?</p>
+      <div class="space-y-3" id="test2Sliders"></div>
+      <div class="mt-4 p-3 rounded-lg" id="test2Result"></div>
+    </div>
+    <!-- Test 3 -->
+    <div class="card p-5">
+      <div class="flex items-center gap-2 mb-3">
+        <div class="w-8 h-8 rounded-full bg-green-600 flex items-center justify-center font-bold text-sm">3</div>
+        <h3 class="font-bold text-white">Better-Off Test</h3>
+      </div>
+      <p class="text-xs text-slate-400 mb-4">Will 1+1=3? Do businesses perform better together?</p>
+      <div class="space-y-3" id="test3Sliders"></div>
+      <div class="mt-4 p-3 rounded-lg" id="test3Result"></div>
+    </div>
+  </div>
+  <!-- Combined verdict -->
+  <div class="card p-5 mt-4">
+    <h3 class="font-bold text-white mb-3">⚖️ Diversification Verdict</h3>
+    <div id="verdictDisplay" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div id="verdictChart" class="chart-wrap"><canvas id="testsRadar"></canvas></div>
+      <div id="verdictText" class="flex flex-col justify-center space-y-3"></div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: 9-Cell Matrix -->
+<div id="panel-matrix" class="panel max-w-6xl mx-auto px-4 mt-4 pb-8">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 card p-4">
+      <h2 class="font-bold text-white mb-1">Industry Attractiveness × Competitive Strength Matrix</h2>
+      <p class="text-xs text-slate-400 mb-3">Bubble size = % of corporate revenues. Drag sliders to reposition businesses.</p>
+      <div class="relative" style="padding-bottom: 70%;">
+        <div class="absolute inset-0" id="matrixContainer">
+          <svg id="matrixSVG" width="100%" height="100%" viewBox="0 0 600 420" preserveAspectRatio="xMidYMid meet">
+            <!-- Grid cells -->
+            <defs>
+              <marker id="arrowhead" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+                <polygon points="0 0, 8 3, 0 6" fill="#60a5fa"/>
+              </marker>
+            </defs>
+            <!-- Background cells -->
+            <rect x="50" y="20" width="180" height="120" fill="#064e3b" opacity="0.4" rx="4"/>
+            <rect x="230" y="20" width="180" height="120" fill="#064e3b" opacity="0.2" rx="4"/>
+            <rect x="410" y="20" width="160" height="120" fill="#1e3a5f" opacity="0.3" rx="4"/>
+            <rect x="50" y="140" width="180" height="120" fill="#064e3b" opacity="0.2" rx="4"/>
+            <rect x="230" y="140" width="180" height="120" fill="#1e3a5f" opacity="0.2" rx="4"/>
+            <rect x="410" y="140" width="160" height="120" fill="#431407" opacity="0.2" rx="4"/>
+            <rect x="50" y="260" width="180" height="120" fill="#1e3a5f" opacity="0.3" rx="4"/>
+            <rect x="230" y="260" width="180" height="120" fill="#431407" opacity="0.2" rx="4"/>
+            <rect x="410" y="260" width="160" height="120" fill="#450a0a" opacity="0.4" rx="4"/>
+            <!-- Priority labels -->
+            <text x="140" y="85" text-anchor="middle" fill="#6ee7b7" font-size="10" font-weight="bold">HIGH PRIORITY</text>
+            <text x="320" y="205" text-anchor="middle" fill="#93c5fd" font-size="10" font-weight="bold">MEDIUM PRIORITY</text>
+            <text x="490" y="325" text-anchor="middle" fill="#fca5a5" font-size="10" font-weight="bold">LOW PRIORITY</text>
+            <!-- Axis labels -->
+            <text x="25" y="220" text-anchor="middle" fill="#94a3b8" font-size="11" transform="rotate(-90,25,220)">Industry Attractiveness →</text>
+            <text x="300" y="415" text-anchor="middle" fill="#94a3b8" font-size="11">Competitive Strength →</text>
+            <!-- X axis ticks -->
+            <text x="140" y="408" text-anchor="middle" fill="#64748b" font-size="9">Strong (6.7-10)</text>
+            <text x="320" y="408" text-anchor="middle" fill="#64748b" font-size="9">Average (3.3-6.7)</text>
+            <text x="490" y="408" text-anchor="middle" fill="#64748b" font-size="9">Weak (0-3.3)</text>
+            <!-- Y axis ticks -->
+            <text x="45" y="85" text-anchor="end" fill="#64748b" font-size="9">High</text>
+            <text x="45" y="205" text-anchor="end" fill="#64748b" font-size="9">Med</text>
+            <text x="45" y="325" text-anchor="end" fill="#64748b" font-size="9">Low</text>
+            <!-- Grid lines -->
+            <line x1="50" y1="140" x2="570" y2="140" stroke="#334155" stroke-width="1"/>
+            <line x1="50" y1="260" x2="570" y2="260" stroke="#334155" stroke-width="1"/>
+            <line x1="230" y1="20" x2="230" y2="380" stroke="#334155" stroke-width="1"/>
+            <line x1="410" y1="20" x2="410" y2="380" stroke="#334155" stroke-width="1"/>
+            <rect x="50" y="20" width="520" height="360" fill="none" stroke="#475569" stroke-width="1.5" rx="4"/>
+            <!-- Bubbles group -->
+            <g id="matrixBubbles"></g>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="space-y-4">
+      <div class="card p-4">
+        <h3 class="font-bold text-white mb-3">🎛️ Adjust Business Positions</h3>
+        <div id="matrixControls" class="space-y-4"></div>
+      </div>
+      <div class="card p-4">
+        <h3 class="font-bold text-white mb-2">📋 Matrix Interpretation</h3>
+        <div id="matrixInterpretation" class="text-xs text-slate-300 space-y-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: Synergy Engine -->
+<div id="panel-synergy" class="panel max-w-6xl mx-auto px-4 mt-4 pb-8">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card p-5">
+      <h2 class="font-bold text-white mb-1">⚡ Strategic Fit & Synergy Simulator</h2>
+      <p class="text-xs text-slate-400 mb-4">Activate synergy levers to see how 1+1 can become 3</p>
+      <div class="space-y-4" id="synergyLevers"></div>
+      <div class="mt-4 p-4 rounded-xl bg-slate-800 border border-slate-600">
+        <div class="text-sm text-slate-300 mb-2">Combined Performance Multiplier</div>
+        <div class="flex items-end gap-3">
+          <div class="text-4xl font-bold" id="synergyMultiplier">1.00×</div>
+          <div class="text-sm text-slate-400 mb-1" id="synergyEquation">1 + 1 = 2</div>
+        </div>
+        <div class="score-bar mt-2">
+          <div id="synergyBar" class="score-fill bg-blue-500" style="width:33%"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-bold text-white mb-3">📊 Value Creation Breakdown</h3>
+      <div class="chart-wrap"><canvas id="synergyChart"></canvas></div>
+      <div id="synergyInsights" class="mt-3 space-y-2 text-xs text-slate-300"></div>
+    </div>
+  </div>
+  <!-- Synergy comparison -->
+  <div class="card p-5 mt-4">
+    <h3 class="font-bold text-white mb-3">🔄 Related vs. Unrelated: Synergy Comparison</h3>
+    <div class="chart-wrap"><canvas id="comparisonChart"></canvas></div>
+  </div>
+</div>
+
+<!-- PANEL: Cash Flow -->
+<div id="panel-cashflow" class="panel max-w-6xl mx-auto px-4 mt-4 pb-8">
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+    <div class="lg:col-span-2 card p-5">
+      <h2 class="font-bold text-white mb-1">💰 Cash Cow & Cash Hog Portfolio</h2>
+      <p class="text-xs text-slate-400 mb-4">Manage internal capital allocation across your business portfolio</p>
+      <div class="chart-wrap"><canvas id="cashflowChart"></canvas></div>
+      <div class="mt-4 grid grid-cols-2 gap-3" id="cashflowStats"></div>
+    </div>
+    <div class="space-y-4">
+      <div class="card p-4">
+        <h3 class="font-bold text-white mb-3">🐄 Cash Cow / 🐷 Cash Hog Classifier</h3>
+        <div id="cashClassifier" class="space-y-3"></div>
+      </div>
+      <div class="card p-4">
+        <h3 class="font-bold text-white mb-3">💡 Allocation Strategy</h3>
+        <div id="allocationAdvice" class="text-xs text-slate-300 space-y-2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- PANEL: Strategy Lab -->
+<div id="panel-strategy" class="panel max-w-6xl mx-auto px-4 mt-4 pb-8">
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+    <div class="card p-5">
+      <h2 class="font-bold text-white mb-1">🎯 Corporate Strategy Simulator</h2>
+      <p class="text-xs text-slate-400 mb-4">Choose a strategic action and simulate its 5-year impact</p>
+      <div class="space-y-3" id="strategyOptions"></div>
+      <div class="mt-4">
+        <button onclick="runStrategySimulation()" class="w-full py-3 bg-blue-600 hover:bg-blue-500 rounded-xl font-semibold text-white transition">
+          ▶ Run 5-Year Simulation
+        </button>
+      </div>
+    </div>
+    <div class="card p-5">
+      <h3 class="font-bold text-white mb-3">📈 5-Year Performance Projection</h3>
+      <div class="chart-wrap"><canvas id="strategyChart"></canvas></div>
+      <div id="strategyOutcome" class="mt-3 text-xs text-slate-300 space-y-2"></div>
+    </div>
+  </div>
+  <!-- Industry Attractiveness Calculator -->
+  <div class="card p-5 mt-4">
+    <h3 class="font-bold text-white mb-3">🧮 Industry Attractiveness Score Calculator</h3>
+    <p class="text-xs text-slate-400 mb-4">Replicate Table 8.1 — adjust weights and ratings to compute weighted scores</p>
+    <div class="overflow-x-auto">
+      <table class="w-full text-xs" id="attractivenessTable">
+        <thead>
+          <tr class="text-slate-400 border-b border-slate-700">
+            <th class="text-left py-2 pr-3">Measure</th>
+            <th class="text-center py-2 px-2">Weight</th>
+            <th class="text-center py-2 px-2">Rating (1-10)</th>
+            <th class="text-center py-2 px-2">Weighted Score</th>
+          </tr>
+        </thead>
+        <tbody id="attractivenessBody" class="divide-y divide-slate-800"></tbody>
+        <tfoot>
+          <tr class="border-t border-slate-600">
+            <td class="py-2 font-bold text-white">Total</td>
+            <td class="text-center py-2 font-bold" id="weightTotal">1.00</td>
+            <td></td>
+            <td class="text-center py-2 font-bold text-blue-400 text-sm" id="scoreTotal">—</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ============================================================
+// STATE
+// ============================================================
+const state = {
+  businesses: [],
+  divType: 'related',
+  synergyLevers: {
+    resourceTransfer: 0,
+    economiesOfScope: 0,
+    brandSharing: 0,
+    crossCollaboration: 0,
+    parentingCapability: 0
+  },
+  selectedStrategy: 'stick',
+  test1: { marketGrowth: 7, competitionIntensity: 4, profitability: 7, resourceMatch: 6 },
+  test2: { acquisitionPrice: 5, targetROI: 7, integrationCost: 4 },
+  test3: { strategicFit: 6, synergyPotential: 7, parentingValue: 5 },
+  matrixBusinesses: []
+};
+
+const COLORS = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4'];
+const BUSINESS_TEMPLATES = [
+  { name: 'Core Business', industry: 'Consumer Goods', attractiveness: 7.2, strength: 7.8, revenue: 40, cashFlow: 15, growth: 5 },
+  { name: 'Tech Division', industry: 'Technology', attractiveness: 8.5, strength: 5.5, revenue: 25, cashFlow: -5, growth: 18 },
+  { name: 'Legacy Unit', industry: 'Manufacturing', attractiveness: 3.5, strength: 4.0, revenue: 20, cashFlow: 8, growth: 1 },
+  { name: 'New Venture', industry: 'Healthcare', attractiveness: 7.8, strength: 3.2, revenue: 15, cashFlow: -8, growth: 22 }
+];
+
+// ============================================================
+// INIT
+// ============================================================
+document.addEventListener('DOMContentLoaded', () => {
+  try {
+    // Initialize with template businesses
+    BUSINESS_TEMPLATES.forEach((t, i) => {
+      state.businesses.push({ ...t, id: i, color: COLORS[i] });
+    });
+    state.matrixBusinesses = state.businesses.map(b => ({ ...b }));
+
+    renderBusinessUnits();
+    renderPortfolioSummary();
+    updateDivType();
+    renderLearningPath();
+    renderTest1();
+    renderTest2();
+    renderTest3();
+    renderMatrixControls();
+    drawMatrix();
+    renderSynergyLevers();
+    renderCashflow();
+    renderStrategyOptions();
+    renderAttractivenessTable();
+    updateAllTests();
+  } catch(e) {
+    console.error('Init error:', e);
+  }
+});
+
+// ============================================================
+// TAB SWITCHING
+// ============================================================
+function switchTab(tab) {
+  try {
+    document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('panel-' + tab).classList.add('active');
+    event.target.classList.add('active');
+
+    // Delayed chart renders for tabs
+    setTimeout(() => {
+      if (tab === 'tests') { updateAllTests(); }
+      if (tab === 'matrix') { drawMatrix(); }
+      if (tab === 'synergy') { updateSynergyChart(); updateComparisonChart(); }
+      if (tab === 'cashflow') { renderCashflowChart(); }
+      if (tab === 'strategy') { runStrategySimulation(); }
+    }, 100);
+  } catch(e) { console.error('Tab switch error:', e); }
+}
+
+// ============================================================
+// BUILD PORTFOLIO
+// ============================================================
+function renderBusinessUnits() {
+  const container = document.getElementById('businessUnits');
+  if (!container) return;
+  container.innerHTML = '';
+  state.businesses.forEach((b, i) => {
+    const div = document.createElement('div');
+    div.className = 'p-4 rounded-xl border border-slate-700 bg-slate-800';
+    div.innerHTML = `
+      <div class="flex items-center justify-between mb-3">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded-full" style="background:${b.color}"></div>
+          <input value="${b.name}" onchange="updateBusiness(${i},'name',this.value)"
+            class="bg-transparent font-semibold text-white text-sm border-b border-slate-600 focus:outline-none focus:border-blue-400 w-36"/>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="tag tag-blue text-xs">${b.industry}</span>
+          ${state.businesses.length > 2 ? `<button onclick="removeBusiness(${i})" class="text-red-400 hover:text-red-300 text-xs">✕</button>` : ''}
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-3 text-xs">
+        <div class="slider-container">
+          <div class="flex justify-between text-slate-400 mb-1"><span>Industry Attractiveness</span><span class="text-blue-400 font-bold">${b.attractiveness.toFixed(1)}</span></div>
+          <input type="range" min="1" max="10" step="0.1" value="${b.attractiveness}" oninput="updateBusiness(${i},'attractiveness',+this.value)">
+        </div>
+        <div class="slider-container">
+          <div class="flex justify-between text-slate-400 mb-1"><span>Competitive Strength</span><span class="text-green-400 font-bold">${b.strength.toFixed(1)}</span></div>
+          <input type="range" min="1" max="10" step="0.1" value="${b.strength}" oninput="updateBusiness(${i},'strength',+this.value)">
+        </div>
+        <div class="slider-container">
+          <div class="flex justify-between text-slate-400 mb-1"><span>Revenue Share (%)</span><span class="text-yellow-400 font-bold">${b.revenue}%</span></div>
+          <input type="range" min="5" max="70" step="1" value="${b.revenue}" oninput="updateBusiness(${i},'revenue',+this.value)">
+        </div>
+        <div class="slider-container">
+          <div class="flex justify-between text-slate-400 mb-1"><span>Annual Growth (%)</span><span class="text-purple-400 font-bold">${b.growth}%</span></div>
+          <input type="range" min="-5" max="30" step="1" value="${b.growth}" oninput="updateBusiness(${i},'growth',+this.value)">
+        </div>
+      </div>
+      <div class="mt-2 flex gap-2 text-xs">
+        ${getBusinessTag(b)}
+      </div>
+    `;
+    container.appendChild(div);
+  });
+  renderPortfolioSummary();
+}
+
+function getBusinessTag(b) {
+  let tags = '';
+  if (b.attractiveness >= 6.7 && b.strength >= 6.7) tags += '<span class="tag tag-green">⭐ Star</span>';
+  else if (b.attractiveness < 3.3 && b.strength < 3.3) tags += '<span class="tag tag-red">⚠️ Divest Candidate</span>';
+  else if (b.attractiveness >= 6.7 && b.strength < 3.3) tags += '<span class="tag tag-orange">🔧 Needs Investment</span>';
+  else tags += '<span class="tag tag-blue">📊 Average</span>';
+  if (b.cashFlow > 5) tags += '<span class="tag tag-green ml-1">🐄 Cash Cow</span>';
+  else if (b.cashFlow < -3) tags += '<span class="tag tag-orange ml-1">🐷 Cash Hog</span>';
+  return tags;
+}
+
+function updateBusiness(i, field, value) {
+  try {
+    if (i < 0 || i >= state.businesses.length) return;
+    state.businesses[i][field] = value;
+    state.matrixBusinesses[i] = { ...state.businesses[i] };
+    renderBusinessUnits();
+    drawMatrix();
+    renderMatrixControls();
+  } catch(e) { console.error('updateBusiness error:', e); }
+}
+
+function addBusiness() {
+  if (state.businesses.length >= 6) return;
+  const idx = state.businesses.length;
+  state.businesses.push({
+    id: idx, name: 'New Business ' + (idx+1), industry: 'New Industry',
+    attractiveness: 5, strength: 5, revenue: 10, cashFlow: 0, growth: 8,
+    color: COLORS[idx % COLORS.length]
+  });
+  state.matrixBusinesses = state.businesses.map(b => ({ ...b }));
+  renderBusinessUnits();
+  drawMatrix();
+}
+
+function removeBusiness(i) {
+  if (state.businesses.length <= 2) return;
+  state.businesses.splice(i, 1);
+  state.businesses.forEach((b, idx) => { b.id = idx; b.color = COLORS[idx % COLORS.length]; });
+  state.matrixBusinesses = state.businesses.map(b => ({ ...b }));
+  renderBusinessUnits();
+  drawMatrix();
+}
+
+function renderPortfolioSummary() {
+  const el = document.getElementById('portfolioSummary');
+  if (!el) return;
+  const avgAttr = avg(state.businesses.map(b => b.attractiveness));
+  const avgStr = avg(state.businesses.map(b => b.strength));
+  const totalRev = state.businesses.reduce((s, b) => s + b.revenue, 0);
+  const avgGrowth = avg(state.businesses.map(b => b.growth));
+  const score = ((avgAttr + avgStr) / 2).toFixed(1);
+
+  document.getElementById('portfolioScore').textContent = score;
+  document.getElementById('portfolioLabel').textContent = score >= 7 ? 'Strong Portfolio' : score >= 5 ? 'Average Portfolio' : 'Weak Portfolio';
+
+  el.innerHTML = `
+    <div class="flex justify-between"><span class="text-slate-400">Avg Industry Attractiveness</span><span class="text-blue-400 font-bold">${avgAttr.toFixed(1)}/10</span></div>
+    <div class="score-bar"><div class="score-fill bg-blue-500" style="width:${avgAttr*10}%"></div></div>
+    <div class="flex justify-between mt-2"><span class="text-slate-400">Avg Competitive Strength</span><span class="text-green-400 font-bold">${avgStr.toFixed(1)}/10</span></div>
+    <div class="score-bar"><div class="score-fill bg-green-500" style="width:${avgStr*10}%"></div></div>
+    <div class="flex justify-between mt-2"><span class="text-slate-400">Portfolio Growth Rate</span><span class="text-purple-400 font-bold">${avgGrowth.toFixed(1)}%</span></div>
+    <div class="flex justify-between mt-2"><span class="text-slate-400">Business Units</span><span class="text-white font-bold">${state.businesses.length}</span></div>
+    <div class="flex justify-between"><span class="text-slate-400">Revenue Coverage</span><span class="${totalRev >= 100 ? 'text-green-400' : 'text-yellow-400'} font-bold">${totalRev}%</span></div>
+  `;
+}
+
+function updateDivType() {
+  state.divType = document.querySelector('input[name="divType"]:checked').value;
+  const explains = {
+    related: '🔗 Related diversification leverages cross-business strategic fits. Value chain similarities enable resource transfer, economies of scope, and brand sharing — creating 1+1=3 synergies.',
+    unrelated: '🌐 Unrelated diversification spreads risk across diverse industries. Success depends on astute corporate parenting, bargain acquisitions, and superior capital allocation skills.',
+    combination: '⚖️ Combination strategy balances related and unrelated elements. Core businesses share strategic fits while peripheral businesses diversify risk across different industries.'
+  };
+  const el = document.getElementById('divTypeExplain');
+  if (el) el.textContent = explains[state.divType];
+}
+
+function renderLearningPath() {
+  const steps = [
+    { label: 'Understand when to diversify', done: true },
+    { label: 'Apply the Three Tests', done: false },
+    { label: 'Choose related vs. unrelated', done: false },
+    { label: 'Build the 9-Cell Matrix', done: false },
+    { label: 'Analyze synergies & cash flows', done: false },
+    { label: 'Craft strategic moves', done: false }
+  ];
+  const el = document.getElementById('learningPath');
+  if (!el) return;
+  el.innerHTML = steps.map((s, i) => `
+    <div class="progress-step">
+      <div class="step-num ${s.done ? 'step-done' : i === 1 ? 'step-active' : 'step-todo'}">${i+1}</div>
+      <span class="text-xs ${s.done ? 'text-green-400' : i === 1 ? 'text-blue-300' : 'text-slate-500'}">${s.label}</span>
+    </div>
+  `).join('');
+}
+
+// ============================================================
+// THREE TESTS
+// ============================================================
+const test1Config = [
+  { key: 'marketGrowth', label: 'Market Growth Rate', weight: 0.25 },
+  { key: 'competitionIntensity', label: 'Competition Intensity (low=good)', weight: 0.30, invert: true },
+  { key: 'profitability', label: 'Industry Profitability', weight: 0.25 },
+  { key: 'resourceMatch', label: 'Resource/Capability Match', weight: 0.20 }
+];
+const test2Config = [
+  { key: 'acquisitionPrice', label: 'Acquisition Price (low=good)', weight: 0.40, invert: true },
+  { key: 'targetROI', label: 'Target Business ROI', weight: 0.35 },
+  { key: 'integrationCost', label: 'Integration Cost (low=good)', weight: 0.25, invert: true }
+];
+const test3Config = [
+  { key: 'strategicFit', label: 'Strategic Fit Strength', weight: 0.40 },
+  { key: 'synergyPotential', label: 'Synergy Potential', weight: 0.35 },
+  { key: 'parentingValue', label: 'Parenting Value-Add', weight: 0.25 }
+];
+
+function renderTestSliders(containerId, config, stateKey) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = config.map(c => `
+    <div class="slider-container">
+      <div class="flex justify-between text-xs text-slate-400 mb-1">
+        <span>${c.label}</span>
+        <span class="font-bold text-white">${state[stateKey][c.key]}/10</span>
+      </div>
+      <input type="range" min="1" max="10" step="1" value="${state[stateKey][c.key]}"
+        oninput="updateTest('${stateKey}','${c.key}',+this.value)">
+    </div>
+  `).join('');
+}
+
+function renderTest1() { renderTestSliders('test1Sliders', test1Config, 'test1'); }
+function renderTest2() { renderTestSliders('test2Sliders', test2Config, 'test2'); }
+function renderTest3() { renderTestSliders('test3Sliders', test3Config, 'test3'); }
+
+function updateTest(stateKey, field, value) {
+  try {
+    state[stateKey][field] = value;
+    renderTestSliders(stateKey === 'test1' ? 'test1Sliders' : stateKey === 'test2' ? 'test2Sliders' : 'test3Sliders',
+      stateKey === 'test1' ? test1Config : stateKey === 'test2' ? test2Config : test3Config, stateKey);
+    updateAllTests();
+  } catch(e) { console.error('updateTest error:', e); }
+}
+
+function calcTestScore(config, stateKey) {
+  let score = 0;
+  config.forEach(c => {
+    const val = state[stateKey][c.key];
+    const adjusted = c.invert ? (11 - val) : val;
+    score += adjusted * c.weight;
+  });
+  return score;
+}
+
+function updateAllTests() {
+  try {
+    const s1 = calcTestScore(test1Config, 'test1');
+    const s2 = calcTestScore(test2Config, 'test2');
+    const s3 = calcTestScore(test3Config, 'test3');
+
+    renderTestResult('test1Result', s1, 'Industry Attractiveness', 'The industry must offer profit potential comparable to or better than current businesses.');
+    renderTestResult('test2Result', s2, 'Cost of Entry', 'Entry costs must not erode the potential for good profitability.');
+    renderTestResult('test3Result', s3, 'Better-Off', 'Businesses must perform better together than as standalone entities.');
+
+    updateVerdictDisplay(s1, s2, s3);
+    updateRadarChart(s1, s2, s3);
+  } catch(e) { console.error('updateAllTests error:', e); }
+}
+
+function renderTestResult(elId, score, testName, desc) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  const pass = score >= 6;
+  const marginal = score >= 4.5 && score < 6;
+  el.className = `mt-4 p-3 rounded-lg border ${pass ? 'bg-green-950 border-green-700' : marginal ? 'bg-yellow-950 border-yellow-700' : 'bg-red-950 border-red-700'}`;
+  el.innerHTML = `
+    <div class="flex items-center gap-2 mb-1">
+      <span class="text-lg">${pass ? '✅' : marginal ? '⚠️' : '❌'}</span>
+      <span class="font-bold text-sm ${pass ? 'text-green-400' : marginal ? 'text-yellow-400' : 'text-red-400'}">${pass ? 'PASSES' : marginal ? 'MARGINAL' : 'FAILS'} — Score: ${score.toFixed(2)}/10</span>
+    </div>
+    <p class="text-xs text-slate-400">${desc}</p>
+  `;
+}
+
+let radarChart = null;
+function updateRadarChart(s1, s2, s3) {
+  const canvas = document.getElementById('testsRadar');
+  if (!canvas) return;
+  try {
+    if (radarChart) { radarChart.destroy(); radarChart = null; }
+    radarChart = new Chart(canvas, {
+      type: 'radar',
+      data: {
+        labels: ['Industry Attractiveness', 'Cost of Entry', 'Better-Off Test'],
+        datasets: [{
+          label: 'Test Scores',
+          data: [s1, s2, s3],
+          backgroundColor: 'rgba(59,130,246,0.2)',
+          borderColor: '#3b82f6',
+          pointBackgroundColor: '#3b82f6',
+          pointRadius: 5
+        }, {
+          label: 'Pass Threshold',
+          data: [6, 6, 6],
+          backgroundColor: 'rgba(16,185,129,0.05)',
+          borderColor: '#10b981',
+          borderDash: [5,5],
+          pointRadius: 0
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        scales: { r: { min: 0, max: 10, ticks: { color: '#64748b', stepSize: 2 }, grid: { color: '#334155' }, pointLabels: { color: '#94a3b8', font: { size: 11 } } } },
+        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } }
+      }
+    });
+  } catch(e) { console.error('Radar chart error:', e); }
+}
+
+function updateVerdictDisplay(s1, s2, s3) {
+  const el = document.getElementById('verdictText');
+  if (!el) return;
+  const passes = [s1 >= 6, s2 >= 6, s3 >= 6];
+  const passCount = passes.filter(Boolean).length;
+  const verdict = passCount === 3 ? { label: 'STRONG GO', color: 'text-green-400', bg: 'bg-green-950 border-green-700', icon: '🚀' }
+    : passCount === 2 ? { label: 'PROCEED WITH CAUTION', color: 'text-yellow-400', bg: 'bg-yellow-950 border-yellow-700', icon: '⚠️' }
+    : { label: 'DO NOT DIVERSIFY', color: 'text-red-400', bg: 'bg-red-950 border-red-700', icon: '🛑' };
+
+  el.innerHTML = `
+    <div class="p-4 rounded-xl border ${verdict.bg}">
+      <div class="text-2xl mb-1">${verdict.icon}</div>
+      <div class="font-bold text-lg ${verdict.color}">${verdict.label}</div>
+      <div class="text-xs text-slate-400 mt-1">${passCount}/3 tests passed</div>
+    </div>
+    <div class="text-xs text-slate-300 space-y-1">
+      <div>${passes[0] ? '✅' : '❌'} Industry Attractiveness: ${s1.toFixed(1)}/10</div>
+      <div>${passes[1] ? '✅' : '❌'} Cost of Entry: ${s2.toFixed(1)}/10</div>
+      <div>${passes[2] ? '✅' : '❌'} Better-Off Test: ${s3.toFixed(1)}/10</div>
+    </div>
+    <div class="text-xs text-slate-400 italic">
+      ${passCount === 3 ? 'All three tests pass — diversification has strong potential to create shareholder value.' 
+        : passCount === 2 ? 'Two tests pass — diversification is suspect. Address the failing test before proceeding.'
+        : 'Most tests fail — this diversification move is unlikely to create shareholder value.'}
+    </div>
+  `;
+}
+
+// ============================================================
+// 9-CELL MATRIX
+// ============================================================
+function renderMatrixControls() {
+  const el = document.getElementById('matrixControls');
+  if (!el) return;
+  el.innerHTML = state.businesses.map((b, i) => `
+    <div class="pb-3 border-b border-slate-700 last:border-0">
+      <div class="flex items-center gap-2 mb-2">
+        <div class="w-3 h-3 rounded-full flex-shrink-0" style="background:${b.color}"></div>
+        <span class="text-sm font-semibold text-white">${b.name}</span>
+      </div>
+      <div class="text-xs text-slate-400 mb-1">Attractiveness: <span class="text-blue-400 font-bold">${b.attractiveness.toFixed(1)}</span></div>
+      <input type="range" min="1" max="10" step="0.1" value="${b.attractiveness}"
+        oninput="updateMatrixBusiness(${i},'attractiveness',+this.value)" class="w-full mb-2" style="accent-color:${b.color}">
+      <div class="text-xs text-slate-400 mb-1">Strength: <span class="text-green-400 font-bold">${b.strength.toFixed(1)}</span></div>
+      <input type="range" min="1" max="10" step="0.1" value="${b.strength}"
+        oninput="updateMatrixBusiness(${i},'strength',+this.value)" class="w-full" style="accent-color:${b.color}">
+    </div>
+  `).join('');
+  renderMatrixInterpretation();
+}
+
+function updateMatrixBusiness(i, field, value) {
+  try {
+    state.businesses[i][field] = value;
+    state.matrixBusinesses[i] = { ...state.businesses[i] };
+    renderMatrixControls();
+    drawMatrix();
+  } catch(e) { console.error('updateMatrixBusiness error:', e); }
+}
+
+function drawMatrix() {
+  const g = document.getElementById('matrixBubbles');
+  if (!g) return;
+  g.innerHTML = '';
+  // Matrix area: x: 50-570, y: 20-380
+  // Attractiveness: high=top(y=20), low=bottom(y=380)
+  // Strength: strong=left(x=50), weak=right(x=570)
+  const totalRev = state.businesses.reduce((s, b) => s + b.revenue, 0) || 1;
+
+  state.businesses.forEach((b, i) => {
+    try {
+      const xFrac = 1 - ((b.strength - 1) / 9); // strong=left
+      const yFrac = 1 - ((b.attractiveness - 1) / 9); // high=top
+      const cx = 50 + xFrac * 520;
+      const cy = 20 + yFrac * 360;
+      const r = Math.max(18, Math.min(45, (b.revenue / totalRev) * 120));
+
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', cx);
+      circle.setAttribute('cy', cy);
+      circle.setAttribute('r', r);
+      circle.setAttribute('fill', b.color);
+      circle.setAttribute('opacity', '0.75');
+      circle.setAttribute('stroke', 'white');
+      circle.setAttribute('stroke-width', '1.5');
+      g.appendChild(circle);
+
+      const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      text.setAttribute('x', cx);
+      text.setAttribute('y', cy + 4);
+      text.setAttribute('text-anchor', 'middle');
+      text.setAttribute('fill', 'white');
+      text.setAttribute('font-size', '9');
+      text.setAttribute('font-weight', 'bold');
+      text.textContent = b.name.length > 8 ? b.name.substring(0, 8) + '..' : b.name;
+      g.appendChild(text);
+
+      const revText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      revText.setAttribute('x', cx);
+      revText.setAttribute('y', cy + 15);
+      revText.setAttribute('text-anchor', 'middle');
+      revText.setAttribute('fill', 'rgba(255,255,255,0.8)');
+      revText.setAttribute('font-size', '8');
+      revText.textContent = b.revenue + '%';
+      g.appendChild(revText);
+    } catch(e) { console.error('Draw bubble error:', e); }
+  });
+}
+
+function renderMatrixInterpretation() {
+  const el = document.getElementById('matrixInterpretation');
+  if (!el) return;
+  const insights = [];
+  state.businesses.forEach(b => {
+    if (b.attractiveness >= 6.7 && b.strength >= 6.7) {
+      insights.push(`<div class="flex gap-2"><span style="color:${b.color}">●</span><span><strong>${b.name}</strong>: High priority — invest aggressively for growth.</span></div>`);
+    } else if (b.attractiveness < 3.3 && b.strength < 3.3) {
+      insights.push(`<div class="flex gap-2"><span style="color:${b.color}">●</span><span><strong>${b.name}</strong>: Divestiture candidate — low priority for resources.</span></div>`);
+    } else if (b.attractiveness >= 6.7 && b.strength < 3.3) {
+      insights.push(`<div class="flex gap-2"><span style="color:${b.color}">●</span><span><strong>${b.name}</strong>: Attractive industry but weak position — selective investment needed.</span></div>`);
+    } else {
+      insights.push(`<div class="flex gap-2"><span style="color:${b.color}">●</span><span><strong>${b.name}</strong>: Medium priority — invest selectively based on fit.</span></div>`);
+    }
+  });
+  el.innerHTML = insights.join('');
+}
+
+// ============================================================
+// SYNERGY ENGINE
+// ============================================================
+const synergyLeverConfig = [
+  { key: 'resourceTransfer', label: 'Cross-Business Resource Transfer', icon: '🔄', desc: 'Transfer skills, tech, and capabilities between businesses', maxBoost: 0.35 },
+  { key: 'economiesOfScope', label: 'Economies of Scope', icon: '📉', desc: 'Share value chain activities to reduce costs', maxBoost: 0.30 },
+  { key: 'brandSharing', label: 'Brand Name Leverage', icon: '🏷️', desc: 'Apply powerful brand across multiple businesses', maxBoost: 0.20 },
+  { key: 'crossCollaboration', label: 'Cross-Business Collaboration', icon: '🤝', desc: 'Build new capabilities through joint efforts', maxBoost: 0.25 },
+  { key: 'parentingCapability', label: 'Corporate Parenting Quality', icon: '🏢', desc: 'Headquarters expertise and resource allocation skill', maxBoost: 0.20 }
+];
+
+function renderSynergyLevers() {
+  const el = document.getElementById('synergyLevers');
+  if (!el) return;
+  el.innerHTML = synergyLeverConfig.map(c => `
+    <div class="p-3 rounded-lg bg-slate-800 border border-slate-700">
+      <div class="flex items-center justify-between mb-1">
+        <div class="flex items-center gap-2">
+          <span>${c.icon}</span>
+          <span class="text-sm font-semibold text-white">${c.label}</span>
+        </div>
+        <span class="text-blue-400 font-bold text-sm">${state.synergyLevers[c.key]}/10</span>
+      </div>
+      <p class="text-xs text-slate-500 mb-2">${c.desc}</p>
+      <input type="range" min="0" max="10" step="1" value="${state.synergyLevers[c.key]}"
+        oninput="updateSynergyLever('${c.key}',+this.value)" class="w-full" style="accent-color:#3b82f6">
+    </div>
+  `).join('');
+  updateSynergyDisplay();
+}
+
+function updateSynergyLever(key, value) {
+  try {
+    state.synergyLevers[key] = value;
+    renderSynergyLevers();
+    updateSynergyChart();
+  } catch(e) { console.error('updateSynergyLever error:', e); }
+}
+
+function calcSynergyMultiplier() {
+  let boost = 1.0;
+  synergyLeverConfig.forEach(c => {
+    const leverVal = state.synergyLevers[c.key] / 10;
+    // Related diversification amplifies synergies
+    const typeMultiplier = state.divType === 'related' ? 1.0 : state.divType === 'combination' ? 0.6 : 0.2;
+    boost += leverVal * c.maxBoost * typeMultiplier;
+  });
+  return Math.min(boost, 3.0);
+}
+
+function updateSynergyDisplay() {
+  const mult = calcSynergyMultiplier();
+  const el = document.getElementById('synergyMultiplier');
+  const eq = document.getElementById('synergyEquation');
+  const bar = document.getElementById('synergyBar');
+  if (el) el.textContent = mult.toFixed(2) + 'x';
+  if (el) el.className = `text-4xl font-bold ${mult >= 2.5 ? 'text-green-400' : mult >= 1.5 ? 'text-blue-400' : 'text-slate-400'}`;
+  if (eq) {
+    const rhs = (mult * 2).toFixed(1);
+    eq.textContent = `1 + 1 = ${rhs}`;
+  }
+  if (bar) {
+    const pct = ((mult - 1) / 2) * 100;
+    bar.style.width = Math.min(100, pct) + '%';
+    bar.className = `score-fill ${mult >= 2.5 ? 'bg-green-500' : mult >= 1.5 ? 'bg-blue-500' : 'bg-slate-500'}`;
+  }
+}
+
+let synergyChartInst = null;
+function updateSynergyChart() {
+  updateSynergyDisplay();
+  const canvas = document.getElementById('synergyChart');
+  if (!canvas) return;
+  try {
+    if (synergyChartInst) { synergyChartInst.destroy(); synergyChartInst = null; }
+    const labels = synergyLeverConfig.map(c => c.icon + ' ' + c.label.split(' ').slice(0,2).join(' '));
+    const values = synergyLeverConfig.map(c => {
+      const typeMultiplier = state.divType === 'related' ? 1.0 : state.divType === 'combination' ? 0.6 : 0.2;
+      return (state.synergyLevers[c.key] / 10) * c.maxBoost * typeMultiplier * 100;
+    });
+    synergyChartInst = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Value Contribution (%)',
+          data: values,
+          backgroundColor: ['#3b82f6','#10b981','#f59e0b','#8b5cf6','#06b6d4'],
+          borderRadius: 6
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, indexAxis: 'y',
+        plugins: { legend: { display: false } },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, max: 35 },
+          y: { ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { display: false } }
+        }
+      }
+    });
+    renderSynergyInsights();
+  } catch(e) { console.error('Synergy chart error:', e); }
+}
+
+function renderSynergyInsights() {
+  const el = document.getElementById('synergyInsights');
+  if (!el) return;
+  const mult = calcSynergyMultiplier();
+  const insights = [];
+  if (state.divType === 'unrelated' && mult < 1.5) {
+    insights.push('⚠️ Unrelated diversification limits synergy potential. Corporate parenting quality is the primary value driver.');
+  }
+  if (state.synergyLevers.economiesOfScope >= 7) {
+    insights.push('✅ Strong economies of scope — shared value chain activities are creating significant cost advantages.');
+  }
+  if (state.synergyLevers.brandSharing >= 7) {
+    insights.push('✅ Brand leverage is high — umbrella brand is reducing marketing costs across businesses.');
+  }
+  if (mult >= 2.5) {
+    insights.push('🚀 Exceptional synergy! Portfolio is achieving true 1+1=3 performance.');
+  }
+  el.innerHTML = insights.map(i => `<div>${i}</div>`).join('') || '<div class="text-slate-500">Adjust levers above to generate insights.</div>';
+}
+
+let comparisonChartInst = null;
+function updateComparisonChart() {
+  const canvas = document.getElementById('comparisonChart');
+  if (!canvas) return;
+  try {
+    if (comparisonChartInst) { comparisonChartInst.destroy(); comparisonChartInst = null; }
+    const years = ['Year 1', 'Year 2', 'Year 3', 'Year 4', 'Year 5'];
+    const relatedGrowth = [100, 118, 140, 168, 202];
+    const unrelatedGrowth = [100, 108, 117, 127, 138];
+    const standalone = [100, 105, 110, 116, 122];
+    comparisonChartInst = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: years,
+        datasets: [
+          { label: 'Related Diversification', data: relatedGrowth, borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.1)', tension: 0.4, fill: true },
+          { label: 'Unrelated Diversification', data: unrelatedGrowth, borderColor: '#f59e0b', backgroundColor: 'rgba(245,158,11,0.1)', tension: 0.4, fill: true },
+          { label: 'Standalone Businesses', data: standalone, borderColor: '#64748b', borderDash: [5,5], tension: 0.4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' }, title: { display: true, text: 'Shareholder Value Index', color: '#64748b' } }
+        }
+      }
+    });
+  } catch(e) { console.error('Comparison chart error:', e); }
+}
+
+// ============================================================
+// CASH FLOW
+// ============================================================
+function renderCashflow() {
+  renderCashClassifier();
+  renderCashflowChart();
+  renderAllocationAdvice();
+}
+
+function renderCashClassifier() {
+  const el = document.getElementById('cashClassifier');
+  if (!el) return;
+  el.innerHTML = state.businesses.map(b => {
+    const isCow = b.cashFlow > 5;
+    const isHog = b.cashFlow < -3;
+    return `
+      <div class="flex items-center justify-between p-2 rounded-lg bg-slate-800">
+        <div class="flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full" style="background:${b.color}"></div>
+          <span class="text-xs text-white">${b.name}</span>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs ${b.cashFlow > 0 ? 'text-green-400' : 'text-red-400'} font-bold">${b.cashFlow > 0 ? '+' : ''}${b.cashFlow}%</span>
+          <span class="text-sm">${isCow ? '🐄' : isHog ? '🐷' : '📊'}</span>
+        </div>
+      </div>
+    `;
+  }).join('');
+}
+
+let cashflowChartInst = null;
+function renderCashflowChart() {
+  const canvas = document.getElementById('cashflowChart');
+  if (!canvas) return;
+  try {
+    if (cashflowChartInst) { cashflowChartInst.destroy(); cashflowChartInst = null; }
+    const years = ['Y1', 'Y2', 'Y3', 'Y4', 'Y5'];
+    const datasets = state.businesses.map(b => ({
+      label: b.name,
+      data: years.map((_, i) => {
+        const base = b.cashFlow;
+        const growth = b.growth / 100;
+        return +(base * Math.pow(1 + growth * 0.5, i)).toFixed(1);
+      }),
+      borderColor: b.color,
+      backgroundColor: b.color + '20',
+      tension: 0.4,
+      fill: false
+    }));
+    cashflowChartInst = new Chart(canvas, {
+      type: 'line',
+      data: { labels: years, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' },
+            title: { display: true, text: 'Cash Flow (% of Revenue)', color: '#64748b' } }
+        }
+      }
+    });
+    renderCashflowStats();
+  } catch(e) { console.error('Cashflow chart error:', e); }
+}
+
+function renderCashflowStats() {
+  const el = document.getElementById('cashflowStats');
+  if (!el) return;
+  const totalCF = state.businesses.reduce((s, b) => s + b.cashFlow, 0);
+  const cows = state.businesses.filter(b => b.cashFlow > 5);
+  const hogs = state.businesses.filter(b => b.cashFlow < -3);
+  el.innerHTML = `
+    <div class="card p-3 text-center">
+      <div class="text-xs text-slate-400">Net Portfolio Cash Flow</div>
+      <div class="text-xl font-bold ${totalCF >= 0 ? 'text-green-400' : 'text-red-400'}">${totalCF > 0 ? '+' : ''}${totalCF.toFixed(1)}%</div>
+    </div>
+    <div class="card p-3 text-center">
+      <div class="text-xs text-slate-400">Cash Cows / Cash Hogs</div>
+      <div class="text-xl font-bold text-white">${cows.length} 🐄 / ${hogs.length} 🐷</div>
+    </div>
+  `;
+}
+
+function renderAllocationAdvice() {
+  const el = document.getElementById('allocationAdvice');
+  if (!el) return;
+  const totalCF = state.businesses.reduce((s, b) => s + b.cashFlow, 0);
+  const advice = [];
+  if (totalCF < 0) advice.push('⚠️ Portfolio has negative net cash flow — consider divesting cash hogs or reducing investment.');
+  const cows = state.businesses.filter(b => b.cashFlow > 5);
+  if (cows.length > 0) advice.push(`✅ ${cows.map(b => b.name).join(', ')} generate surplus cash — redeploy to high-growth businesses.`);
+  const hogs = state.businesses.filter(b => b.cashFlow < -3 && b.growth > 15);
+  if (hogs.length > 0) advice.push(`🚀 ${hogs.map(b => b.name).join(', ')} are high-growth cash hogs — fund them if strategic fit is strong.`);
+  const weakHogs = state.businesses.filter(b => b.cashFlow < -3 && b.growth < 5);
+  if (weakHogs.length > 0) advice.push(`🛑 ${weakHogs.map(b => b.name).join(', ')} are cash hogs with low growth — prime divestiture candidates.`);
+  el.innerHTML = advice.map(a => `<div>${a}</div>`).join('') || '<div class="text-slate-500">Portfolio looks balanced.</div>';
+}
+
+// ============================================================
+// STRATEGY LAB
+// ============================================================
+const strategyOptionsList = [
+  { key: 'stick', label: 'Stick with Existing Lineup', icon: '🔒', desc: 'Focus on optimizing current businesses', growthMult: 1.05, riskLevel: 'Low' },
+  { key: 'broaden', label: 'Broaden Scope (Acquisitions)', icon: '📈', desc: 'Enter new industries via acquisitions', growthMult: 1.18, riskLevel: 'High' },
+  { key: 'retrench', label: 'Retrench to Core Businesses', icon: '✂️', desc: 'Divest weak units, focus on core', growthMult: 1.10, riskLevel: 'Medium' },
+  { key: 'restructure', label: 'Restructure Portfolio', icon: '🔄', desc: 'Divest some, acquire others — new face', growthMult: 1.15, riskLevel: 'High' },
+  { key: 'multinational', label: 'Multinational Diversification', icon: '🌍', desc: 'Expand globally across related businesses', growthMult: 1.22, riskLevel: 'Very High' }
+];
+
+function renderStrategyOptions() {
+  const el = document.getElementById('strategyOptions');
+  if (!el) return;
+  el.innerHTML = strategyOptionsList.map(s => `
+    <label class="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition
+      ${state.selectedStrategy === s.key ? 'border-blue-500 bg-blue-950' : 'border-slate-700 bg-slate-800 hover:border-slate-500'}">
+      <input type="radio" name="strategy" value="${s.key}" ${state.selectedStrategy === s.key ? 'checked' : ''}
+        onchange="state.selectedStrategy='${s.key}'" class="mt-1 accent-blue-500">
+      <div>
+        <div class="flex items-center gap-2">
+          <span>${s.icon}</span>
+          <span class="font-semibold text-sm text-white">${s.label}</span>
+          <span class="tag ${s.riskLevel === 'Low' ? 'tag-green' : s.riskLevel === 'Medium' ? 'tag-blue' : 'tag-orange'} text-xs">${s.riskLevel} Risk</span>
+        </div>
+        <p class="text-xs text-slate-400 mt-1">${s.desc}</p>
+      </div>
+    </label>
+  `).join('');
+}
+
+let strategyChartInst = null;
+function runStrategySimulation() {
+  try {
+    const selected = strategyOptionsList.find(s => s.key === state.selectedStrategy) || strategyOptionsList[0];
+    const canvas = document.getElementById('strategyChart');
+    if (!canvas) return;
+    if (strategyChartInst) { strategyChartInst.destroy(); strategyChartInst = null; }
+
+    const years = ['Now', 'Y1', 'Y2', 'Y3', 'Y4', 'Y5'];
+    const baseValue = 100;
+    const avgAttr = avg(state.businesses.map(b => b.attractiveness));
+    const synergyBoost = calcSynergyMultiplier();
+    const mult = selected.growthMult * (1 + (avgAttr - 5) * 0.02) * (synergyBoost * 0.3 + 0.7);
+
+    const optimistic = years.map((_, i) => +(baseValue * Math.pow(mult * 1.05, i)).toFixed(1));
+    const base = years.map((_, i) => +(baseValue * Math.pow(mult, i)).toFixed(1));
+    const pessimistic = years.map((_, i) => +(baseValue * Math.pow(mult * 0.92, i)).toFixed(1));
+    const standalone = years.map((_, i) => +(baseValue * Math.pow(1.05, i)).toFixed(1));
+
+    strategyChartInst = new Chart(canvas, {
+      type: 'line',
+      data: {
+        labels: years,
+        datasets: [
+          { label: 'Optimistic', data: optimistic, borderColor: '#10b981', borderDash: [4,4], tension: 0.4 },
+          { label: 'Base Case', data: base, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.1)', tension: 0.4, fill: true, borderWidth: 2.5 },
+          { label: 'Pessimistic', data: pessimistic, borderColor: '#ef4444', borderDash: [4,4], tension: 0.4 },
+          { label: 'No Diversification', data: standalone, borderColor: '#64748b', borderDash: [2,4], tension: 0.4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 10 } } } },
+        scales: {
+          x: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' } },
+          y: { ticks: { color: '#64748b' }, grid: { color: '#1e293b' },
+            title: { display: true, text: 'Shareholder Value Index', color: '#64748b' } }
+        }
+      }
+    });
+
+    const el = document.getElementById('strategyOutcome');
+    if (el) {
+      const finalBase = base[base.length - 1];
+      const finalStandalone = standalone[standalone.length - 1];
+      const uplift = ((finalBase / finalStandalone - 1) * 100).toFixed(1);
+      el.innerHTML = `
+        <div class="p-3 rounded-lg bg-slate-800 border border-slate-600">
+          <div class="font-bold text-white mb-1">${selected.icon} ${selected.label}</div>
+          <div class="text-slate-300">5-Year Value: <span class="text-blue-400 font-bold">${finalBase.toFixed(0)}</span> vs standalone <span class="text-slate-400">${finalStandalone.toFixed(0)}</span></div>
+          <div class="text-slate-300">Diversification Uplift: <span class="${+uplift > 0 ? 'text-green-400' : 'text-red-400'} font-bold">${uplift > 0 ? '+' : ''}${uplift}%</span></div>
+          <div class="text-xs text-slate-500 mt-1">Risk Level: ${selected.riskLevel} | Synergy Multiplier: ${synergyBoost.toFixed(2)}x</div>
+        </div>
+      `;
+    }
+  } catch(e) { console.error('Strategy simulation error:', e); }
+}
+
+// ============================================================
+// ATTRACTIVENESS TABLE
+// ============================================================
+const attractivenessMeasures = [
+  { label: 'Market size & projected growth', weight: 0.10, rating: 8 },
+  { label: 'Intensity of competition', weight: 0.25, rating: 8 },
+  { label: 'Emerging opportunities & threats', weight: 0.10, rating: 6 },
+  { label: 'Cross-industry strategic fits', weight: 0.20, rating: 8 },
+  { label: 'Resource requirements', weight: 0.10, rating: 6 },
+  { label: 'Seasonal & cyclical influences', weight: 0.05, rating: 9 },
+  { label: 'Social, political, regulatory factors', weight: 0.05, rating: 8 },
+  { label: 'Industry profitability', weight: 0.10, rating: 5 },
+  { label: 'Industry uncertainty & business risk', weight: 0.05, rating: 5 }
+];
+
+function renderAttractivenessTable() {
+  const tbody = document.getElementById('attractivenessBody');
+  if (!tbody) return;
+  tbody.innerHTML = attractivenessMeasures.map((m, i) => `
+    <tr class="hover:bg-slate-800">
+      <td class="py-2 pr-3 text-slate-300">${m.label}</td>
+      <td class="text-center py-2 px-2">
+        <input type="number" min="0" max="1" step="0.05" value="${m.weight}"
+          onchange="updateAttractivenessRow(${i},'weight',+this.value)"
+          class="w-16 bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-center text-xs text-white">
+      </td>
+      <td class="text-center py-2 px-2">
+        <input type="number" min="1" max="10" step="1" value="${m.rating}"
+          onchange="updateAttractivenessRow(${i},'rating',+this.value)"
+          class="w-16 bg-slate-800 border border-slate-600 rounded px-1 py-0.5 text-center text-xs text-white">
+      </td>
+      <td class="text-center py-2 px-2 font-bold text-blue-400" id="attrScore${i}">${(m.weight * m.rating).toFixed(2)}</td>
+    </tr>
+  `).join('');
+  updateAttractivenessTotal();
+}
+
+function updateAttractivenessRow(i, field, value) {
+  try {
+    attractivenessMeasures[i][field] = value;
+    const scoreEl = document.getElementById('attrScore' + i);
+    if (scoreEl) scoreEl.textContent = (attractivenessMeasures[i].weight * attractivenessMeasures[i].rating).toFixed(2);
+    updateAttractivenessTotal();
+  } catch(e) { console.error('updateAttractivenessRow error:', e); }
+}
+
+function updateAttractivenessTotal() {
+  const totalWeight = attractivenessMeasures.reduce((s, m) => s + m.weight, 0);
+  const totalScore = attractivenessMeasures.reduce((s, m) => s + m.weight * m.rating, 0);
+  const wEl = document.getElementById('weightTotal');
+  const sEl = document.getElementById('scoreTotal');
+  if (wEl) {
+    wEl.textContent = totalWeight.toFixed(2);
+    wEl.className = `text-center py-2 font-bold ${Math.abs(totalWeight - 1) < 0.01 ? 'text-green-400' : 'text-red-400'}`;
+  }
+  if (sEl) {
+    sEl.textContent = totalScore.toFixed(2);
+    sEl.className = `text-center py-2 font-bold text-sm ${totalScore >= 6.7 ? 'text-green-400' : totalScore >= 3.3 ? 'text-blue-400' : 'text-red-400'}`;
+  }
+}
+
+// ============================================================
+// UTILITIES
+// ============================================================
+function avg(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return 0;
+  return arr.reduce((s, v) => s + v, 0) / arr.length;
+}
+</script>
+<script>window.parent.postMessage({ action: "ready" }, "*"); 
+ 
+window.console = new Proxy(console, {
+  get(target, prop) {
+    if (['log', 'warn', 'error'].includes(prop)) {
+      return new Proxy(target[prop], {
+        apply(fn, thisArg, args) {
+          fn.apply(thisArg, args);
+          window.parent.postMessage({ action: 'console', 
+            type: prop, 
+            args: args.map((arg) => {
+              try {
+                return JSON.stringify(arg).replace(/^["']|["']$/g, '');
+              } catch (e) {
+                return arg;
+              }
+            }) 
+          }, '*');
+        }
+      });
+    }
+    return target[prop];
+  }
+});
+</script></body>
+</html>
